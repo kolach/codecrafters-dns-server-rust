@@ -19,18 +19,34 @@ struct Header {
 }
 
 impl Header {
+    // 12 bytes header:
+    //
     // id takes first 2 bytes
+    //
     // qr 1 bit
     // opcode 4 bits
     // aa 1 bit
     // tc 1 bit
     // rd 1 bit
+    //
+    // ra 1 bit
+    // z 4 bits
+    // rcode 3 bits
+    //
+    // qdcount 2 bytes
+    // ancount 2 bytes
+    // nscount 2 bytes
+    // arcount 2 count
     fn to_bytes(&self) -> [u8; 12] {
         let mut buf = [0u8; 12];
 
         buf[..2].copy_from_slice(&self.id.to_be_bytes());
 
-        buf[2] = (self.qr << 7) | (self.opcode << 6) | (self.aa << 2) | (self.tc << 1) | (self.rd);
+        buf[2] |= self.qr << 7;
+        buf[2] |= self.opcode << 6;
+        buf[2] |= self.aa << 2;
+        buf[2] |= self.tc << 1;
+        buf[2] |= self.rd;
 
         buf[3] |= self.ra << 7;
         buf[3] |= self.z << 6;
