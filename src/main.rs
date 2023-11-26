@@ -5,7 +5,7 @@ use std::net::UdpSocket;
 struct Header {
     id: u16,
     qr: u8,
-    opcide: u8,
+    opcode: u8,
     aa: u8,
     tc: u8,
     rd: u8,
@@ -30,11 +30,7 @@ impl Header {
 
         buf[..2].copy_from_slice(&self.id.to_be_bytes());
 
-        buf[2] |= self.qr << 7;
-        buf[2] |= self.opcide << 6;
-        buf[2] |= self.aa << 2;
-        buf[2] |= self.tc << 1;
-        buf[2] |= self.rd;
+        buf[2] = (self.qr << 7) | (self.opcode << 6) | (self.aa << 2) | (self.tc << 1) | (self.rd);
 
         buf[3] |= self.ra << 7;
         buf[3] |= self.z << 6;
