@@ -1,68 +1,88 @@
 // Uncomment this block to pass the first stage
 use std::net::UdpSocket;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct Header {
+    // Packet Identifier (ID)
+    // 16 bits
+    // A random ID assigned to query packets.
+    // Response packets must reply with the same ID.
     id: u16,
+    // Query/Response Indicator (QR)
+    // 1 bit
+    // 1 for a reply packet, 0 for a question packet.
     qr: u8,
+    // Operation Code (OPCODE)
+    // 4 bits
+    // Specifies the kind of query in a message.
     opcode: u8,
+    // Authoritative Answer (AA)
+    // 1 bit
+    // 1 if the responding server "owns" the domain queried, i.e., it's authoritative.
     aa: u8,
+    // Truncation (TC)
+    // 1 bit
+    // 1 if the message is larger than 512 bytes.
+    // Always 0 in UDP responses.
     tc: u8,
+    // Recursion Desired (RD)
+    // 1 bit
+    // Sender sets this to 1 if the server should recursively resolve this query, 0 otherwise.
     rd: u8,
+    // Recursion Available (RA)
+    // 1 bit
+    // Server sets this to 1 to indicate that recursion is available.
     ra: u8,
+    // Reserved (Z)
+    // 3 bits
+    // Used by DNSSEC queries. At inception, it was reserved for future use.
     z: u8,
+    // Response Code (RCODE)
+    // 4 bits
+    // Response code indicating the status of the response.
     rcode: u8,
+    // Question Count (QDCOUNT)
+    // 16 bits
+    // Number of questions in the Question section.
     qdcount: u16,
+    // Answer Record Count (ANCOUNT)
+    // 16 bits
+    // Number of records in the Answer section.
     ancount: u16,
+    // Authority Record Count (NSCOUNT)
+    // 16 bits
+    // Number of records in the Authority section.
     nscount: u16,
+    // Additional Record Count (ARCOUNT)
+    // 16 bits
+    // Number of records in the Additional section.
     arcount: u16,
 }
 
-impl From<Header> for [u8; 12] {
-    // 12 bytes header:
-    //
-    // id takes first 2 bytes
-    //
-    // qr 1 bit
-    // opcode 4 bits
-    // aa 1 bit
-    // tc 1 bit
-    // rd 1 bit
-    //
-    // ra 1 bit
-    // z 4 bits
-    // rcode 3 bits
-    //
-    // qdcount 2 bytes
-    // ancount 2 bytes
-    // nscount 2 bytes
-    // arcount 2 count
-    fn from(value: Header) -> Self {
-        let mut buf = [0u8; 12];
+impl Header {
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        buf[..2].copy_from_slice(&self.id.to_be_bytes());
 
-        buf[..2].copy_from_slice(&value.id.to_be_bytes());
+        buf[2] |= self.qr << 7;
+        buf[2] |= self.opcode << 6;
+        buf[2] |= self.aa << 2;
+        buf[2] |= self.tc << 1;
+        buf[2] |= self.rd;
 
-        buf[2] |= value.qr << 7;
-        buf[2] |= value.opcode << 6;
-        buf[2] |= value.aa << 2;
-        buf[2] |= value.tc << 1;
-        buf[2] |= value.rd;
+        buf[3] |= self.ra << 7;
+        buf[3] |= self.z << 6;
+        buf[3] |= self.rcode << 3;
 
-        buf[3] |= value.ra << 7;
-        buf[3] |= value.z << 6;
-        buf[3] |= value.rcode << 3;
-
-        buf[4..6].copy_from_slice(&value.qdcount.to_be_bytes());
-        buf[6..8].copy_from_slice(&value.ancount.to_be_bytes());
-        buf[8..10].copy_from_slice(&value.nscount.to_be_bytes());
-        buf[10..12].copy_from_slice(&value.arcount.to_be_bytes());
-
-        buf
+        buf[4..6].copy_from_slice(&self.qdcount.to_be_bytes());
+        buf[6..8].copy_from_slice(&self.ancount.to_be_bytes());
+        buf[8..10].copy_from_slice(&self.nscount.to_be_bytes());
+        buf[10..12].copy_from_slice(&self.arcount.to_be_bytes());
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 #[allow(clippy::upper_case_acronyms, dead_code)]
-enum QuestionType {
+enum Type {
     A = 1, // 1 a host address
     NS,    // 2 an authoritative name server
     MD,    // 3 a mail destination (Obsolete - use MX)
@@ -81,51 +101,92 @@ enum QuestionType {
     TXT,   // 16 text strings
 }
 
+impl Type {
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&(*self as u16).to_be_bytes())
+    }
+}
+
+impl From<Type> for [u8; 2] {
+    fn from(value: Type) -> Self {
+        (value as u16).to_be_bytes()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 #[allow(clippy::upper_case_acronyms, dead_code)]
-enum QuestionClass {
+enum Class {
     IN = 1, // 1 the Internet
     CS,     // 2 the CSNET class (Obsolete - used only for examples in some obsolete RFCs)
     CH,     // 3 the CHAOS class
     HS,     // 4 Hesiod [Dyer 87]
 }
 
-struct Question {
-    name: String,
-    qtype: QuestionType,
-    class: QuestionClass,
-}
-
-impl From<Question> for Vec<u8> {
-    fn from(value: Question) -> Self {
-        let mut buf = Vec::new();
-        for label in value.name.split('.') {
-            let len = label.len() as u8;
-            buf.push(len);
-            buf.extend_from_slice(label.as_bytes());
-        }
-        buf.push(0);
-        buf.extend_from_slice(&(value.qtype as u16).to_be_bytes());
-        buf.extend_from_slice(&(value.class as u16).to_be_bytes());
-        buf
+impl Class {
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&(*self as u16).to_be_bytes())
     }
 }
 
+struct Name(String);
+
+impl Name {
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        for label in self.0.split('.') {
+            buf.push(label.len() as u8);
+            buf.extend_from_slice(label.as_bytes());
+        }
+        buf.push(0);
+    }
+}
+
+struct Question {
+    name: Name,
+    qtype: Type,
+    class: Class,
+}
+
+impl Question {
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        self.name.write_to(buf);
+        self.qtype.write_to(buf);
+        self.class.write_to(buf);
+    }
+}
+
+struct Answer {
+    name: Name,
+    atype: Type,
+    class: Class,
+    ttl: u32,
+    // rdlength: u16,
+    rdata: Vec<u8>,
+}
+
+impl Answer {
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        self.name.write_to(buf);
+        self.atype.write_to(buf);
+        self.class.write_to(buf);
+
+        buf.extend_from_slice(&(self.ttl).to_be_bytes());
+        buf.extend_from_slice(&(self.rdata.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&self.rdata)
+    }
+}
 struct Message {
     header: Header,
     question: Question,
+    answer: Answer,
 }
 
-impl From<Message> for Vec<u8> {
-    fn from(value: Message) -> Self {
-        let mut bytes = Vec::new();
-
-        let header_bytes: [u8; 12] = value.header.into();
-        bytes.extend_from_slice(&header_bytes);
-
-        let question_bytes: Vec<u8> = value.question.into();
-        bytes.extend_from_slice(&question_bytes);
-
-        bytes
+impl Message {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        self.header.write_to(&mut buf);
+        self.question.write_to(&mut buf);
+        self.answer.write_to(&mut buf);
+        buf
     }
 }
 
@@ -148,15 +209,23 @@ fn main() {
                         id: 1234,
                         qr: 1,
                         qdcount: 1,
+                        ancount: 1,
                         ..Header::default()
                     },
                     question: Question {
-                        name: "codecrafters.io".into(),
-                        qtype: QuestionType::A,
-                        class: QuestionClass::IN,
+                        name: Name("codecrafters.io".into()),
+                        qtype: Type::A,
+                        class: Class::IN,
+                    },
+                    answer: Answer {
+                        name: Name("codecrafters.io".into()),
+                        atype: Type::A,
+                        class: Class::IN,
+                        ttl: 60,
+                        rdata: vec![8u8; 4],
                     },
                 }
-                .into();
+                .to_bytes();
 
                 udp_socket
                     .send_to(&response, source)
