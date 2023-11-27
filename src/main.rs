@@ -182,7 +182,7 @@ struct Message {
 
 impl Message {
     fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
+        let mut buf = Vec::with_capacity(512);
         self.header.write_to(&mut buf);
         self.question.write_to(&mut buf);
         self.answer.write_to(&mut buf);
