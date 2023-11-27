@@ -60,6 +60,11 @@ struct Header {
 }
 
 impl Header {
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        let head = self.to_bytes();
+        buf.extend_from_slice(&head)
+    }
+
     fn to_bytes(&self) -> [u8; 12] {
         let mut buf = [0u8; 12];
         buf[..2].copy_from_slice(&self.id.to_be_bytes());
@@ -80,6 +85,28 @@ impl Header {
         buf[10..12].copy_from_slice(&self.arcount.to_be_bytes());
 
         buf
+    }
+
+    fn new_from_bytes(b: &[u8]) -> Self {
+        let mut header = Header::default();
+        header.from_bytes(b);
+        header
+    }
+
+    fn from_bytes(&mut self, b: &[u8]) {
+        self.id = u16::from_be_bytes([b[0], b[1]]);
+        self.qr = b[2] >> 7 & 0x01;
+        self.opcode = b[2] >> 3 & 0b00001111;
+        self.aa = b[2] >> 2 & 0x01;
+        self.tc = b[2] >> 1 & 0x01;
+        self.rd = b[2] & 0x01;
+        self.ra = b[3] >> 7 & 0x01;
+        self.z = b[3] >> 4 & 0b00000111;
+        self.rcode = b[3] & 0b00001111;
+        self.qdcount = u16::from_be_bytes([b[4], b[5]]);
+        self.ancount = u16::from_be_bytes([b[6], b[7]]);
+        self.nscount = u16::from_be_bytes([b[8], b[9]]);
+        self.arcount = u16::from_be_bytes([b[10], b[11]]);
     }
 }
 
@@ -157,22 +184,23 @@ impl Question {
     }
 }
 
-struct Answer {
+struct Record {
     name: Name,
-    atype: Type,
+    rtype: Type,
     class: Class,
     ttl: u32,
-    // rdlength: u16,
+    // rdlength: u16, taken from rdata
     rdata: Vec<u8>,
 }
 
-impl Answer {
+impl Record {
     fn write_to(&self, buf: &mut Vec<u8>) {
         self.name.write_to(buf);
-        self.atype.write_to(buf);
+        self.rtype.write_to(buf);
         self.class.write_to(buf);
 
         buf.extend_from_slice(&(self.ttl).to_be_bytes());
+        // rdlength: u16,
         buf.extend_from_slice(&(self.rdata.len() as u16).to_be_bytes());
         buf.extend_from_slice(&self.rdata)
     }
@@ -180,14 +208,13 @@ impl Answer {
 struct Message {
     header: Header,
     question: Question,
-    answer: Answer,
+    answer: Record,
 }
 
 impl Message {
     fn to_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
-        let header = self.header.to_bytes();
-        buf.extend_from_slice(&header);
+        self.header.write_to(&mut buf);
         self.question.write_to(&mut buf);
         self.answer.write_to(&mut buf);
         buf
@@ -208,9 +235,14 @@ fn main() {
                 let _received_data = String::from_utf8_lossy(&buf[0..size]);
                 println!("Received {} bytes from {}", size, source);
 
+                let req_header = Header::new_from_bytes(&buf[0..12]);
+
                 let response: Vec<u8> = Message {
                     header: Header {
-                        id: 1234,
+                        id: req_header.id,
+                        opcode: req_header.opcode,
+                        rd: req_header.rd,
+                        rcode: if req_header.opcode == 0 { 0 } else { 4 },
                         qr: 1,
                         qdcount: 1,
                         ancount: 1,
@@ -221,9 +253,9 @@ fn main() {
                         qtype: Type::A,
                         class: Class::IN,
                     },
-                    answer: Answer {
+                    answer: Record {
                         name: Name("codecrafters.io".into()),
-                        atype: Type::A,
+                        rtype: Type::A,
                         class: Class::IN,
                         ttl: 60,
                         rdata: vec![8u8; 4],
