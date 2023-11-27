@@ -96,12 +96,12 @@ impl Header {
     fn from_bytes(&mut self, b: &[u8]) {
         self.id = u16::from_be_bytes([b[0], b[1]]);
         self.qr = b[2] >> 7 & 0x01;
-        self.opcode = b[2] >> 3 & 0b00001111;
+        self.opcode = b[2] >> 6 & 0b00001111;
         self.aa = b[2] >> 2 & 0x01;
         self.tc = b[2] >> 1 & 0x01;
         self.rd = b[2] & 0x01;
         self.ra = b[3] >> 7 & 0x01;
-        self.z = b[3] >> 4 & 0b00000111;
+        self.z = b[3] >> 6 & 0b00000111;
         self.rcode = b[3] & 0b00001111;
         self.qdcount = u16::from_be_bytes([b[4], b[5]]);
         self.ancount = u16::from_be_bytes([b[6], b[7]]);
