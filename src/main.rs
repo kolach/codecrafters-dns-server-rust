@@ -60,7 +60,8 @@ struct Header {
 }
 
 impl Header {
-    fn write_to(&self, buf: &mut Vec<u8>) {
+    fn to_bytes(&self) -> [u8; 12] {
+        let mut buf = [0u8; 12];
         buf[..2].copy_from_slice(&self.id.to_be_bytes());
 
         buf[2] |= self.qr << 7;
@@ -77,6 +78,8 @@ impl Header {
         buf[6..8].copy_from_slice(&self.ancount.to_be_bytes());
         buf[8..10].copy_from_slice(&self.nscount.to_be_bytes());
         buf[10..12].copy_from_slice(&self.arcount.to_be_bytes());
+
+        buf
     }
 }
 
@@ -182,8 +185,9 @@ struct Message {
 
 impl Message {
     fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(512);
-        self.header.write_to(&mut buf);
+        let mut buf = Vec::new();
+        let header = self.header.to_bytes();
+        buf.extend_from_slice(&header);
         self.question.write_to(&mut buf);
         self.answer.write_to(&mut buf);
         buf
