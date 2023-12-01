@@ -1,3 +1,6 @@
+#[allow(dead_code)]
+mod encoder;
+
 // Uncomment this block to pass the first stage
 use std::net::UdpSocket;
 
