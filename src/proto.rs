@@ -39,6 +39,7 @@ impl Name {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[repr(u16)]
 #[allow(clippy::upper_case_acronyms, dead_code)]
 pub enum Type {
     #[default]
@@ -65,12 +66,35 @@ pub enum Type {
     MAILA,
     ANY,
 
-    UNKNOWN,
+    UNKNOWN(u16),
 }
 
 impl Type {
     pub fn encode(&self, enc: &mut Encoder) {
-        enc.write_u16(*self as u16)
+        match self {
+            Self::A => enc.write_u16(1),
+            Self::NS => enc.write_u16(2),
+            Self::MD => enc.write_u16(3),
+            Self::MF => enc.write_u16(4),
+            Self::CNAME => enc.write_u16(5),
+            Self::SOA => enc.write_u16(6),
+            Self::MB => enc.write_u16(7),
+            Self::MG => enc.write_u16(8),
+            Self::MR => enc.write_u16(9),
+            Self::NULL => enc.write_u16(10),
+            Self::WKS => enc.write_u16(11),
+            Self::PTR => enc.write_u16(12),
+            Self::HINFO => enc.write_u16(13),
+            Self::MINFO => enc.write_u16(14),
+            Self::MX => enc.write_u16(15),
+            Self::TXT => enc.write_u16(16),
+            Self::AXFR => enc.write_u16(252),
+            Self::MAILB => enc.write_u16(253),
+            Self::MAILA => enc.write_u16(254),
+            Self::ANY => enc.write_u16(255),
+            Self::UNKNOWN(v) => enc.write_u16(*v),
+        }
+        // enc.write_u16(*self as u16)
     }
 
     pub fn decode(dec: &mut Decoder) -> Result<Self, Error> {
@@ -97,8 +121,7 @@ impl Type {
             253 => Ok(Self::MAILB),
             254 => Ok(Self::MAILA),
             255 => Ok(Self::ANY),
-            256 => Ok(Self::UNKNOWN),
-            _ => Err(Error::Custom(format!("wrong type code {}", value))),
+            _ => Ok(Self::UNKNOWN(value)),
         }
     }
 }
@@ -112,7 +135,7 @@ pub enum Class {
     CS, // 2 the CSNET class (Obsolete - used only for examples in some obsolete RFCs)
     CH, // 3 the CHAOS class
     HS, // 4 Hesiod [Dyer 87]
-    ANY(u16),
+    UNKNOWN(u16),
 }
 
 impl Class {
@@ -122,7 +145,7 @@ impl Class {
             Self::CS => enc.write_u16(2),
             Self::CH => enc.write_u16(3),
             Self::HS => enc.write_u16(4),
-            Self::ANY(v) => enc.write_u16(*v),
+            Self::UNKNOWN(v) => enc.write_u16(*v),
         }
         // enc.write_u16(*self as u16)
     }
@@ -134,7 +157,7 @@ impl Class {
             2 => Ok(Self::CS),
             3 => Ok(Self::CH),
             4 => Ok(Self::HS),
-            _ => Ok(Self::ANY(value)),
+            _ => Ok(Self::UNKNOWN(value)),
         }
     }
 }
@@ -149,7 +172,7 @@ pub struct Question {
 impl Question {
     fn encode(&self, enc: &mut Encoder) {
         self.name.encode(enc);
-        enc.write_u16(self.qtype as u16);
+        self.qtype.encode(enc);
         self.class.encode(enc);
     }
 
@@ -175,7 +198,7 @@ pub struct Record {
 impl Record {
     pub fn encode(&self, enc: &mut Encoder) {
         self.name.encode(enc);
-        enc.write_u16(self.rtype as u16);
+        self.rtype.encode(enc);
         self.class.encode(enc);
         enc.write_u32(self.ttl);
         enc.write_u16(self.rdata.len() as u16);
