@@ -116,7 +116,7 @@ impl Type {
             14 => Ok(Self::MINFO),
             15 => Ok(Self::MX),
             16 => Ok(Self::TXT),
-            _ => Err(Error::Custom(format!("wrong class code {}", value))),
+            _ => Err(Error::Custom(format!("wrong type code {}", value))),
         }
     }
 }
@@ -152,7 +152,7 @@ impl Class {
             2 => Ok(Self::CS),
             3 => Ok(Self::CH),
             4 => Ok(Self::HS),
-            _ => Err(Error::Custom(format!("wrong class code {}", value))),
+            _ => Ok(Self::ANY(value)),
         }
     }
 }
