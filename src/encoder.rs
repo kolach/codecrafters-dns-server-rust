@@ -186,8 +186,10 @@ impl<'a> Decoder<'a> {
         self.offset
     }
 
-    pub fn set_offset(&mut self, offset: usize) {
-        self.offset = offset
+    pub fn set_offset(&mut self, offset: usize) -> usize {
+        let current = self.offset;
+        self.offset = offset;
+        current
     }
 
     pub fn read_slice(&mut self, len: usize) -> Result<&'a [u8], Error> {
@@ -201,6 +203,31 @@ impl<'a> Decoder<'a> {
         let res = &self.buf[self.offset..self.offset + len];
         self.offset += len;
         Ok(res)
+    }
+
+    pub fn read_name(&mut self) -> Result<String, Error> {
+        let mut segments = Vec::new();
+
+        loop {
+            let len = self.read_u8()?;
+            if len == 0 {
+                break;
+            }
+
+            if len & 0xC0 == 0xC0 {
+                let offset = u16::from_be_bytes([len & 0x3F, self.read_u8()?]) as usize;
+                let original_ffset = self.set_offset(offset);
+                let segment = self.read_name()?;
+                segments.push(segment);
+                self.set_offset(original_ffset);
+            } else {
+                let bytes = self.read_slice(len as usize)?;
+                let label = std::str::from_utf8(bytes)?;
+                segments.push(label.into());
+            }
+        }
+
+        Ok(segments.join("."))
     }
 
     pub fn read_label(&mut self) -> Result<Option<&'a str>, Error> {

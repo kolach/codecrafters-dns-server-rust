@@ -26,16 +26,21 @@ impl Name {
     //     Ok(Self(segments.join(".")))
     // }
 
+    // pub fn decode(dec: &mut Decoder) -> Result<Self, Error> {
+    //     let mut segments = Vec::new();
+    //     while let Some(label) = dec.read_label()? {
+    //         segments.push(label);
+    //     }
+    //     println!(
+    //         "No more labels detected! joining all segments: {:?}",
+    //         segments
+    //     );
+    //     Ok(Self(segments.join(".")))
+    // }
+    //
     pub fn decode(dec: &mut Decoder) -> Result<Self, Error> {
-        let mut segments = Vec::new();
-        while let Some(label) = dec.read_label()? {
-            segments.push(label);
-        }
-        println!(
-            "No more labels detected! joining all segments: {:?}",
-            segments
-        );
-        Ok(Self(segments.join(".")))
+        let name = dec.read_name()?;
+        Ok(Self(name))
     }
 
     // pub fn decode_bad(dec: &mut Decoder) -> Result<Self, Error> {
