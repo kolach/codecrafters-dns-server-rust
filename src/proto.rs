@@ -37,11 +37,36 @@ impl Name {
     //     );
     //     Ok(Self(segments.join(".")))
     // }
-    //
-    pub fn decode(dec: &mut Decoder) -> Result<Self, Error> {
-        let name = dec.read_name()?;
-        Ok(Self(name))
+
+    fn decode(dec: &mut Decoder) -> Result<Self, Error> {
+        let mut segments = Vec::new();
+
+        loop {
+            let len = dec.read_u8()?;
+            if len == 0 {
+                break;
+            }
+
+            if len & 0xC0 == 0xC0 {
+                let offset = u16::from_be_bytes([len & 0x3F, dec.read_u8()?]) as usize;
+                let original_ffset = dec.set_offset(offset);
+                let segment = Self::decode(dec)?;
+                segments.push(segment.0);
+                dec.set_offset(original_ffset);
+            } else {
+                let bytes = dec.read_slice(len as usize)?;
+                let label = std::str::from_utf8(bytes)?;
+                segments.push(label.into());
+            }
+        }
+
+        Ok(Self(segments.join(".")))
     }
+
+    // pub fn decode(dec: &mut Decoder) -> Result<Self, Error> {
+    //     let name = dec.read_name()?;
+    //     Ok(Self(name))
+    // }
 
     // pub fn decode_bad(dec: &mut Decoder) -> Result<Self, Error> {
     //     let mut segments = Vec::new();
