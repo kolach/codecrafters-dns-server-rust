@@ -213,8 +213,11 @@ impl<'a> Decoder<'a> {
 
         if len & 0xC0 == 0xC0 {
             let offset = u16::from_be_bytes([len & 0x3F, self.read_u8()?]) as usize;
-            println!("compressed label detected! Offset: {}", offset);
             let label = self.labels.get(&offset);
+            println!(
+                "compressed label detected! Offset: {}, found: {:?}",
+                offset, label
+            );
             Ok(label.copied())
         } else {
             let bytes = self.read_slice(len as usize)?;
