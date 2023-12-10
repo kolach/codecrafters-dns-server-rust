@@ -90,6 +90,14 @@ pub enum Type {
     MINFO, // 14 mailbox or mail list information
     MX,    // 15 mail exchange
     TXT,   // 16 text strings
+
+    // Qtype
+    AXFR = 252,
+    MAILB,
+    MAILA,
+    ANY,
+
+    UNKNOWN,
 }
 
 impl Type {
@@ -116,6 +124,12 @@ impl Type {
             14 => Ok(Self::MINFO),
             15 => Ok(Self::MX),
             16 => Ok(Self::TXT),
+            // QType
+            252 => Ok(Self::AXFR),
+            253 => Ok(Self::MAILB),
+            254 => Ok(Self::MAILA),
+            255 => Ok(Self::ANY),
+            256 => Ok(Self::UNKNOWN),
             _ => Err(Error::Custom(format!("wrong type code {}", value))),
         }
     }
