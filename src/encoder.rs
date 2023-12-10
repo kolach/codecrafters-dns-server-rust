@@ -1,13 +1,18 @@
+use std::str::Utf8Error;
+
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq)]
 pub enum Error {
     #[error("width must be between 1 and 8 (was {0})")]
     BitsWidth(u8),
+
     #[error("not enough space to write (offset {offset:?}, width {width:?})")]
     BitsWrite { offset: u8, width: u8 },
+
     #[error("not enough space to read (offset {offset:?}, width {width:?})")]
     BitsRead { offset: u8, width: u8 },
+
     #[error(
         "not enough bytes to read (offset {offset:?}, read_len {read_len:?}, buf_len {buf_len:?})"
     )]
@@ -16,6 +21,12 @@ pub enum Error {
         read_len: usize,
         buf_len: usize,
     },
+
+    #[error("utf8 decode error")]
+    DecodeUtf8(#[from] Utf8Error),
+
+    #[error("{0}")]
+    Custom(String),
 }
 
 pub struct Encoder<'a> {
@@ -28,17 +39,53 @@ impl<'a> Encoder<'a> {
         Self { offset: 0, buf }
     }
 
+    pub fn set_offset(&mut self, pos: usize) {
+        if pos > self.buf.len() {
+            self.buf.resize(pos - self.buf.len(), 0);
+        }
+        self.offset = pos;
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+
     pub fn write_slice(&mut self, b: &[u8]) {
-        if self.buf.len() - self.offset > b.len() {
-            self.buf.copy_from_slice(b);
-            self.offset += b.len();
+        if b.len() == 1 {
+            self.write_u8(b[0])
         } else {
-            self.buf.extend_from_slice(b);
-            self.offset = self.buf.len();
+            let cp_lo = self.offset;
+            let cp_hi = (self.offset + b.len()).min(self.buf.len()); // highest index
+            let cp_sz = cp_hi - cp_lo; // size to copy
+
+            if cp_sz > 0 {
+                self.buf[cp_lo..cp_hi].copy_from_slice(&b[..cp_sz]);
+            }
+            if cp_sz < b.len() {
+                self.buf.extend_from_slice(&b[cp_sz..]);
+            }
+            self.offset += b.len();
         }
     }
 
+    pub fn write_u8(&mut self, b: u8) {
+        if self.offset < self.buf.len() {
+            self.buf[self.offset] = b;
+        } else {
+            self.buf.push(b);
+        }
+        self.offset += 1;
+    }
+
+    pub fn write_str<'s>(&mut self, s: &'s str) {
+        self.write_slice(s.as_bytes())
+    }
+
     pub fn write_u16(&mut self, v: u16) {
+        self.write_slice(&v.to_be_bytes())
+    }
+
+    pub fn write_u32(&mut self, v: u32) {
         self.write_slice(&v.to_be_bytes())
     }
 
@@ -48,8 +95,9 @@ impl<'a> Encoder<'a> {
     {
         let mut byte: u8 = 0;
         let mut bit_enc = BitEncoder::new(&mut byte);
+
         func(&mut bit_enc)?;
-        self.write_slice(&[byte]);
+        self.write_u8(byte);
         Ok(())
     }
 }
@@ -142,10 +190,19 @@ impl<'a> Decoder<'a> {
         Ok(res)
     }
 
+    pub fn read_u8(&mut self) -> Result<u8, Error> {
+        let b = self.read_slice(1)?;
+        Ok(b[0])
+    }
+
     pub fn read_u16(&mut self) -> Result<u16, Error> {
         let b = self.read_slice(2)?;
-        let res = u16::from_be_bytes([b[0], b[1]]);
-        Ok(res)
+        Ok(u16::from_be_bytes([b[0], b[1]]))
+    }
+
+    pub fn read_u32(&mut self) -> Result<u32, Error> {
+        let b = self.read_slice(4)?;
+        Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
     }
 
     pub fn read_bits<F>(&mut self, mut func: F) -> Result<(), Error>
@@ -161,9 +218,7 @@ impl<'a> Decoder<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::encoder::{Encoder, Error};
-
-    use super::{BitDecoder, BitEncoder, Decoder};
+    use super::{BitDecoder, BitEncoder, Decoder, Encoder, Error};
 
     #[derive(Debug, Default, PartialEq)]
     struct Header {
