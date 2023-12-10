@@ -28,6 +28,8 @@ fn main() -> Result<(), Error> {
                 let mut dec = Decoder::new(&buf);
                 let request = Message::decode(&mut dec)?;
 
+                println!("---> Parsed request: {:?}", request);
+
                 let answers = request
                     .questions
                     .iter()
