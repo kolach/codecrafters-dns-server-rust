@@ -12,19 +12,58 @@ impl Name {
         enc.write_u8(0);
     }
 
+    // pub fn decode_old(dec: &mut Decoder) -> Result<Self, Error> {
+    //     let mut segments = Vec::new();
+    //     let mut len = dec.read_u8()? as usize;
+    //
+    //     while len > 0 {
+    //         let bytes = dec.read_slice(len)?;
+    //         let label = std::str::from_utf8(bytes)?;
+    //         segments.push(label);
+    //         len = dec.read_u8()? as usize;
+    //     }
+    //
+    //     Ok(Self(segments.join(".")))
+    // }
+
     pub fn decode(dec: &mut Decoder) -> Result<Self, Error> {
         let mut segments = Vec::new();
-        let mut len = dec.read_u8()? as usize;
-
-        while len > 0 {
-            let bytes = dec.read_slice(len)?;
-            let label = std::str::from_utf8(bytes)?;
+        while let Some(label) = dec.read_label()? {
             segments.push(label);
-            len = dec.read_u8()? as usize;
         }
-
         Ok(Self(segments.join(".")))
     }
+
+    // pub fn decode_bad(dec: &mut Decoder) -> Result<Self, Error> {
+    //     let mut segments = Vec::new();
+    //     let mut len = dec.read_u8()?;
+    //
+    //     while len > 0 {
+    //         // check if first 2 bits are 11
+    //         if len & 0xC0 == 0xC0 {
+    //             let b1 = len & 0x3F;
+    //             let b2 = dec.read_u8()?;
+    //             let offset = u16::from_be_bytes([b1, b2]);
+    //             let old_offset = dec.offset();
+    //
+    //             dec.set_offset(offset as usize);
+    //             let len = dec.read_u8()?;
+    //             let bytes = dec.read_slice(len as usize)?;
+    //             let label = std::str::from_utf8(bytes)?;
+    //             segments.push(label);
+    //
+    //             dec.set_offset(old_offset);
+    //         } else {
+    //             let bytes = dec.read_slice(len as usize)?;
+    //             let label = std::str::from_utf8(bytes)?;
+    //             segments.push(label);
+    //         }
+    //
+    //         len = dec.read_u8()?;
+    //     }
+    //
+    //     Ok(Self(segments.join(".")))
+    // }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]

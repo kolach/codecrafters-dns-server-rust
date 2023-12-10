@@ -28,31 +28,26 @@ fn main() -> Result<(), Error> {
                 let mut dec = Decoder::new(&buf);
                 let request = Message::decode(&mut dec)?;
 
+                let answers = request
+                    .questions
+                    .iter()
+                    .map(|q| Record {
+                        name: q.name.clone(),
+                        rtype: q.qtype,
+                        class: q.class,
+                        ttl: 60,
+                        rdata: vec![8u8; 4],
+                    })
+                    .collect();
+
                 let reply = Message {
                     id: request.id,
                     opcode: request.opcode,
                     rd: request.rd,
                     rcode: if request.opcode == 0 { 0 } else { 4 },
                     qr: 1,
-                    questions: request.questions.clone(),
-                    answers: request
-                        .questions
-                        .iter()
-                        .map(|q| Record {
-                            name: q.name.clone(),
-                            rtype: q.qtype,
-                            class: q.class,
-                            ttl: 60,
-                            rdata: vec![8u8; 4],
-                        })
-                        .collect(),
-                    // answers: vec![Record {
-                    //     name: Name("codecrafters.io".into()),
-                    //     rtype: Type::A,
-                    //     class: Class::IN,
-                    //     ttl: 60,
-                    //     rdata: vec![8u8; 4],
-                    // }],
+                    questions: request.questions,
+                    answers,
                     ..Message::default()
                 };
 

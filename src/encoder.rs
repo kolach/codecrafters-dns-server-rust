@@ -1,4 +1,4 @@
-use std::str::Utf8Error;
+use std::{collections::HashMap, str::Utf8Error};
 
 use thiserror::Error;
 
@@ -170,11 +170,24 @@ impl<'a> BitDecoder<'a> {
 pub struct Decoder<'a> {
     buf: &'a [u8],
     offset: usize,
+    labels: HashMap<usize, &'a str>,
 }
 
 impl<'a> Decoder<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
-        Self { buf, offset: 0 }
+        Self {
+            buf,
+            offset: 0,
+            labels: HashMap::new(),
+        }
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+
+    pub fn set_offset(&mut self, offset: usize) {
+        self.offset = offset
     }
 
     pub fn read_slice(&mut self, len: usize) -> Result<&'a [u8], Error> {
@@ -188,6 +201,24 @@ impl<'a> Decoder<'a> {
         let res = &self.buf[self.offset..self.offset + len];
         self.offset += len;
         Ok(res)
+    }
+
+    pub fn read_label(&mut self) -> Result<Option<&'a str>, Error> {
+        let len = self.read_u8()?;
+        if len == 0 {
+            return Ok(None);
+        }
+
+        if len & 0xC0 == 0xC0 {
+            let offset = u16::from_be_bytes([len & 0x3F, self.read_u8()?]) as usize;
+            let label = self.labels.get(&offset);
+            Ok(label.copied())
+        } else {
+            let bytes = self.read_slice(len as usize)?;
+            let label = std::str::from_utf8(bytes)?;
+            self.labels.insert(self.offset, label);
+            Ok(Some(label))
+        }
     }
 
     pub fn read_u8(&mut self) -> Result<u8, Error> {
