@@ -122,6 +122,7 @@ impl Type {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[repr(u16)]
 #[allow(clippy::upper_case_acronyms, dead_code)]
 pub enum Class {
     #[default]
@@ -129,11 +130,19 @@ pub enum Class {
     CS, // 2 the CSNET class (Obsolete - used only for examples in some obsolete RFCs)
     CH, // 3 the CHAOS class
     HS, // 4 Hesiod [Dyer 87]
+    ANY(u16),
 }
 
 impl Class {
     pub fn encode(&self, enc: &mut Encoder) {
-        enc.write_u16(*self as u16)
+        match &self {
+            Self::IN => enc.write_u16(1),
+            Self::CS => enc.write_u16(2),
+            Self::CH => enc.write_u16(3),
+            Self::HS => enc.write_u16(4),
+            Self::ANY(v) => enc.write_u16(*v),
+        }
+        // enc.write_u16(*self as u16)
     }
 
     pub fn decode(dec: &mut Decoder) -> Result<Self, Error> {
@@ -159,7 +168,7 @@ impl Question {
     fn encode(&self, enc: &mut Encoder) {
         self.name.encode(enc);
         enc.write_u16(self.qtype as u16);
-        enc.write_u16(self.class as u16);
+        self.class.encode(enc);
     }
 
     fn decode(dec: &mut Decoder) -> Result<Self, Error> {
@@ -185,7 +194,7 @@ impl Record {
     pub fn encode(&self, enc: &mut Encoder) {
         self.name.encode(enc);
         enc.write_u16(self.rtype as u16);
-        enc.write_u16(self.class as u16);
+        self.class.encode(enc);
         enc.write_u32(self.ttl);
         enc.write_u16(self.rdata.len() as u16);
         enc.write_slice(&self.rdata)
