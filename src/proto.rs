@@ -31,6 +31,10 @@ impl Name {
         while let Some(label) = dec.read_label()? {
             segments.push(label);
         }
+        println!(
+            "No more labels detected! joining all segments: {:?}",
+            segments
+        );
         Ok(Self(segments.join(".")))
     }
 
