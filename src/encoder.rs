@@ -213,11 +213,13 @@ impl<'a> Decoder<'a> {
 
         if len & 0xC0 == 0xC0 {
             let offset = u16::from_be_bytes([len & 0x3F, self.read_u8()?]) as usize;
+            println!("compressed label detected! Offset: {}", offset);
             let label = self.labels.get(&offset);
             Ok(label.copied())
         } else {
             let bytes = self.read_slice(len as usize)?;
             let label = std::str::from_utf8(bytes)?;
+            println!("writing label {} with offset {}", label, label_offset);
             self.labels.insert(label_offset, label);
             Ok(Some(label))
         }
