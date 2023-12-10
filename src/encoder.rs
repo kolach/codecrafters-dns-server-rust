@@ -204,6 +204,8 @@ impl<'a> Decoder<'a> {
     }
 
     pub fn read_label(&mut self) -> Result<Option<&'a str>, Error> {
+        let label_offset = self.offset;
+
         let len = self.read_u8()?;
         if len == 0 {
             return Ok(None);
@@ -216,7 +218,7 @@ impl<'a> Decoder<'a> {
         } else {
             let bytes = self.read_slice(len as usize)?;
             let label = std::str::from_utf8(bytes)?;
-            self.labels.insert(self.offset, label);
+            self.labels.insert(label_offset, label);
             Ok(Some(label))
         }
     }
