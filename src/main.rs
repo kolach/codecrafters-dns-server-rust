@@ -56,9 +56,8 @@ fn main() -> Result<()> {
                     let fwd_socket =
                         UdpSocket::bind("0.0.0.0:0").expect("Failed to bin fwd socket");
 
-                    for (i, question) in request.questions.iter().enumerate() {
+                    for question in request.questions.iter() {
                         let fwd_request = Message {
-                            id: request.id + i as u16,
                             questions: vec![Question {
                                 qtype: Type::A,
                                 class: Class::IN,
