@@ -237,9 +237,9 @@ pub struct Message {
     // Response code indicating the status of the response.
     pub rcode: u8,
 
-    pub qdcount: u16,
+    // pub qdcount: u16,
 
-    pub ancount: u16,
+    // pub ancount: u16,
 
     // Authority Record Count (NSCOUNT), 16 bits
     // Number of records in the Authority section.
@@ -299,18 +299,18 @@ impl Message {
             Ok(())
         })?;
 
-        msg.qdcount = dec.read_u16()?;
-        msg.ancount = dec.read_u16()?;
+        let qdcount = dec.read_u16()?;
+        let ancount = dec.read_u16()?;
         msg.nscount = dec.read_u16()?;
         msg.arcount = dec.read_u16()?;
 
         // now we read questions based on qdcount from header
-        msg.questions = (0..msg.qdcount)
+        msg.questions = (0..qdcount)
             .into_iter()
             .map(|_| Question::decode(dec))
             .collect::<Result<Vec<_>, _>>()?;
 
-        msg.answers = (0..msg.ancount)
+        msg.answers = (0..ancount)
             .into_iter()
             .map(|_| Record::decode(dec))
             .collect::<Result<Vec<_>, _>>()?;

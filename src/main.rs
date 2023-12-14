@@ -55,13 +55,15 @@ fn main() -> Result<()> {
                         UdpSocket::bind("0.0.0.0:0").expect("Failed to bin fwd socket");
 
                     for question in request.questions.iter() {
-                        let mut fwd_request = request.clone();
-                        fwd_request.questions = vec![question.clone()];
+                        let fwd_request = Message {
+                            questions: vec![question.clone()],
+                            ..request.clone()
+                        };
+                        println!("---> Sending query to fwd server: {:?}", fwd_request);
+                        // fwd_request.questions = vec![question.clone()];
                         let mut buf = Vec::with_capacity(512);
                         let mut enc = Encoder::new(&mut buf);
                         fwd_request.encode(&mut enc)?;
-
-                        println!("---> Sending query to fwd server: {:?}", fwd_request);
 
                         fwd_socket
                             .send_to(&buf, fwd_addr.to_string())
