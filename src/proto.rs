@@ -13,28 +13,8 @@ impl Name {
     }
 
     fn decode(dec: &mut Decoder) -> Result<Self, Error> {
-        let mut segments = Vec::new();
-
-        loop {
-            let len = dec.read_u8()?;
-            if len == 0 {
-                break;
-            }
-
-            if len & 0xC0 == 0xC0 {
-                let offset = u16::from_be_bytes([len & 0x3F, dec.read_u8()?]) as usize;
-                let original_ffset = dec.set_offset(offset);
-                let segment = Self::decode(dec)?;
-                segments.push(segment.0);
-                dec.set_offset(original_ffset);
-            } else {
-                let bytes = dec.read_slice(len as usize)?;
-                let label = std::str::from_utf8(bytes)?;
-                segments.push(label.into());
-            }
-        }
-
-        Ok(Self(segments.join(".")))
+        let name = dec.read_name()?;
+        Ok(Self(name))
     }
 }
 
@@ -185,7 +165,7 @@ impl Question {
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct Record {
     pub name: Name,
     pub rtype: Type,
@@ -218,7 +198,7 @@ impl Record {
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct Message {
     // Packet Identifier (ID), 16 bits
     // A random ID assigned to query packets.
@@ -256,6 +236,10 @@ pub struct Message {
     // Response Code (RCODE), 4 bits
     // Response code indicating the status of the response.
     pub rcode: u8,
+
+    pub qdcount: u16,
+
+    pub ancount: u16,
 
     // Authority Record Count (NSCOUNT), 16 bits
     // Number of records in the Authority section.
@@ -315,18 +299,18 @@ impl Message {
             Ok(())
         })?;
 
-        let qdcount = dec.read_u16()?;
-        let ancount = dec.read_u16()?;
+        msg.qdcount = dec.read_u16()?;
+        msg.ancount = dec.read_u16()?;
         msg.nscount = dec.read_u16()?;
         msg.arcount = dec.read_u16()?;
 
         // now we read questions based on qdcount from header
-        msg.questions = (0..qdcount)
+        msg.questions = (0..msg.qdcount)
             .into_iter()
             .map(|_| Question::decode(dec))
             .collect::<Result<Vec<_>, _>>()?;
 
-        msg.answers = (0..ancount)
+        msg.answers = (0..msg.ancount)
             .into_iter()
             .map(|_| Record::decode(dec))
             .collect::<Result<Vec<_>, _>>()?;

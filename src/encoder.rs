@@ -1,32 +1,29 @@
-use std::{collections::HashMap, str::Utf8Error};
+use std::str::Utf8Error;
 
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq)]
 pub enum Error {
     #[error("width must be between 1 and 8 (was {0})")]
-    BitsWidth(u8),
+    BitIndexOutOfRange(u8),
 
-    #[error("not enough space to write (offset {offset:?}, width {width:?})")]
-    BitsWrite { offset: u8, width: u8 },
+    #[error("bit write is out of bounds (offset {offset:?}, width {width:?})")]
+    BitWriteOutOfBounds { offset: u8, width: u8 },
 
-    #[error("not enough space to read (offset {offset:?}, width {width:?})")]
-    BitsRead { offset: u8, width: u8 },
+    #[error("bit read is out of bounds (offset {offset:?}, width {width:?})")]
+    BitReadOutOfBounds { offset: u8, width: u8 },
 
     #[error(
-        "not enough bytes to read (offset {offset:?}, read_len {read_len:?}, buf_len {buf_len:?})"
+        "read out of bounds (offset: {offset:?}, read len: {read_len:?}, buf len: {buf_len:?})"
     )]
-    Read {
+    ReadOutOfBounds {
         offset: usize,
         read_len: usize,
         buf_len: usize,
     },
 
-    #[error("utf8 decode error")]
-    DecodeUtf8(#[from] Utf8Error),
-
-    #[error("{0}")]
-    Custom(String),
+    #[error("utf8 error")]
+    Utf8(#[from] Utf8Error),
 }
 
 pub struct Encoder<'a> {
@@ -116,10 +113,10 @@ impl<'a> BitEncoder<'a> {
     // Method to emit bits into the byte
     pub fn write(&mut self, value: u8, width: u8) -> Result<(), Error> {
         if width == 0 || width > 8 {
-            return Err(Error::BitsWidth(width));
+            return Err(Error::BitIndexOutOfRange(width));
         }
         if self.offset + width > 8 {
-            return Err(Error::BitsWrite {
+            return Err(Error::BitWriteOutOfBounds {
                 offset: self.offset,
                 width,
             });
@@ -149,10 +146,10 @@ impl<'a> BitDecoder<'a> {
     // Method to read bits from the byte
     pub fn read(&mut self, width: u8) -> Result<u8, Error> {
         if width == 0 || width > 8 {
-            return Err(Error::BitsWidth(width));
+            return Err(Error::BitIndexOutOfRange(width));
         }
         if self.offset + width > 8 {
-            return Err(Error::BitsRead {
+            return Err(Error::BitReadOutOfBounds {
                 offset: self.offset,
                 width,
             });
@@ -170,16 +167,11 @@ impl<'a> BitDecoder<'a> {
 pub struct Decoder<'a> {
     buf: &'a [u8],
     offset: usize,
-    labels: HashMap<usize, &'a str>,
 }
 
 impl<'a> Decoder<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
-        Self {
-            buf,
-            offset: 0,
-            labels: HashMap::new(),
-        }
+        Self { buf, offset: 0 }
     }
 
     pub fn offset(&self) -> usize {
@@ -194,7 +186,7 @@ impl<'a> Decoder<'a> {
 
     pub fn read_slice(&mut self, len: usize) -> Result<&'a [u8], Error> {
         if self.offset + len > self.buf.len() {
-            return Err(Error::Read {
+            return Err(Error::ReadOutOfBounds {
                 offset: self.offset,
                 buf_len: self.buf.len(),
                 read_len: len,
@@ -228,6 +220,31 @@ impl<'a> Decoder<'a> {
         let mut bit_dec = BitDecoder::new(&b[0]);
         func(&mut bit_dec)?;
         Ok(())
+    }
+
+    pub fn read_name(&mut self) -> Result<String, Error> {
+        let mut segments = Vec::new();
+
+        loop {
+            let len = self.read_u8()?;
+            if len == 0 {
+                break;
+            }
+
+            if len & 0xC0 == 0xC0 {
+                let offset = u16::from_be_bytes([len & 0x3F, self.read_u8()?]) as usize;
+                let original_ffset = self.set_offset(offset);
+                let segment = self.read_name()?;
+                segments.push(segment);
+                self.set_offset(original_ffset);
+            } else {
+                let bytes = self.read_slice(len as usize)?;
+                let label = std::str::from_utf8(bytes)?;
+                segments.push(label.into());
+            }
+        }
+
+        Ok(segments.join("."))
     }
 }
 
