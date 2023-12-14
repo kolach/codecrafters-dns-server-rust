@@ -41,6 +41,8 @@ fn main() -> Result<()> {
                 println!("---> Parsed request: {:?}", request);
 
                 let reply = if let Some(fwd_addr) = args.resolver {
+                    println!("Forward server address: {}", fwd_addr);
+
                     let mut reply = Message {
                         id: request.id,
                         opcode: request.opcode,
