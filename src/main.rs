@@ -5,7 +5,7 @@ mod proto;
 
 use crate::{
     encoder::{Decoder, Encoder},
-    proto::{Message, Record},
+    proto::{Class, Message, Question, Record, Type},
 };
 use anyhow::Result;
 use clap::Parser;
@@ -57,7 +57,11 @@ fn main() -> Result<()> {
                     for (i, question) in request.questions.iter().enumerate() {
                         let fwd_request = Message {
                             id: request.id + i as u16,
-                            questions: vec![question.clone()],
+                            questions: vec![Question {
+                                qtype: Type::A,
+                                class: Class::IN,
+                                ..question.clone()
+                            }],
                             ..request.clone()
                         };
                         println!("---> Sending query to fwd server: {:?}", fwd_request);
